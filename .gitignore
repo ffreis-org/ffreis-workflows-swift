@@ -1,0 +1,19 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+*.xcodeproj/
+DerivedData/
+**/xcuserdata/
+*.xcuserstate
+
+# env
+.env
+
+# Sonar / scanner artifacts
+.scannerwork/
+
+# lefthook local binary
+.bin/

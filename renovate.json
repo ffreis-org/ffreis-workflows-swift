@@ -1,0 +1,6 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>FelipeFuhr/ffreis-platform-standards:renovate/github-actions"],
+  "swift": { "enabled": true },
+  "cocoapods": { "enabled": true }
+}

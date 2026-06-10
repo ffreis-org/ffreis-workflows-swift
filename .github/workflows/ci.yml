@@ -1,0 +1,52 @@
+name: CI
+
+# Self-test. Cost guard: swift-lint (ubuntu) runs on every push/PR; the macOS swift-build is
+# gated to workflow_dispatch + a weekly schedule so macOS minutes are never spent on push/PR.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflows-policy:
+    permissions:
+      contents: read
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-workflows-policy.yml@caa797cc7baec52e99f21b86f532a4b7c88cf4fa # fix/grype-install-outside-scan-path
+
+  codeql-actions:
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-codeql.yml@caa797cc7baec52e99f21b86f532a4b7c88cf4fa # fix/grype-install-outside-scan-path
+    with:
+      languages: actions
+      source-root: .
+      upload-sarif: false
+
+  lint:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/swift-lint.yml
+    with:
+      working-directory: examples/hello
+
+  # macOS build/test — ONLY on manual dispatch or the weekly schedule (cost guard).
+  build-test-macos:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/swift-build.yml
+    with:
+      working-directory: examples/hello
+      build-tool: spm
+      run-tests: true

@@ -1,0 +1,49 @@
+name: Swift Lint
+
+# Lint is source-level and runs on UBUNTU (no macOS needed) → cheap. Only swift-build needs macOS.
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory to lint"
+        required: false
+        type: string
+        default: "."
+      strict:
+        description: "Treat warnings as errors (swiftlint --strict)"
+        required: false
+        type: boolean
+        default: true
+      swiftlint-image:
+        description: "SwiftLint container image (Renovate-managed docker tag)"
+        required: false
+        type: string
+        default: "ghcr.io/realm/swiftlint:0.57.2"
+      run_on_draft:
+        description: "Run even on draft PRs (default: skip on draft to save CI minutes)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    if: ${{ inputs.run_on_draft || vars.CI_RUN_ON_DRAFT == 'true' || github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: SwiftLint
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.swiftlint-image }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      STRICT_FLAG: ${{ inputs.strict && '--strict' || '' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run SwiftLint
+        run: |
+          # shellcheck disable=SC2086  # $STRICT_FLAG is an optional single flag, intentionally unquoted
+          swiftlint lint --quiet $STRICT_FLAG

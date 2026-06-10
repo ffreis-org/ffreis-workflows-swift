@@ -1,0 +1,96 @@
+name: Swift Build
+
+# ┌─────────────────────────────────────────────────────────────────────────────────────────┐
+# │ COST GUARD: this workflow runs on macos-latest, which bills at 10x the Linux rate. It is  │
+# │ `workflow_call`-only. CONSUMERS MUST invoke it solely via `workflow_dispatch` (or a       │
+# │ schedule) — never wire it onto push/pull_request. Lint runs separately on ubuntu          │
+# │ (swift-lint.yml). See the 2026-06 CI-cost incident + ffreis-platform-standards.           │
+# └─────────────────────────────────────────────────────────────────────────────────────────┘
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing the Swift package or Xcode project source"
+        required: false
+        type: string
+        default: "."
+      build-tool:
+        description: "spm | xcodebuild"
+        required: false
+        type: string
+        default: "xcodebuild"
+      generate-project:
+        description: "Run `xcodegen generate` before building (xcodebuild only)"
+        required: false
+        type: boolean
+        default: true
+      scheme:
+        description: "Xcode scheme (xcodebuild only)"
+        required: false
+        type: string
+        default: ""
+      destination:
+        description: "xcodebuild -destination"
+        required: false
+        type: string
+        default: "platform=iOS Simulator,name=iPhone 15"
+      configuration:
+        description: "Build configuration"
+        required: false
+        type: string
+        default: "Debug"
+      run-tests:
+        description: "Run tests after building"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-test:
+    name: Build + test (macOS)
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on: macos-latest
+    # NB: step-security/harden-runner is Linux-only; intentionally omitted on macOS.
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      SCHEME: ${{ inputs.scheme }}
+      DESTINATION: ${{ inputs.destination }}
+      CONFIGURATION: ${{ inputs.configuration }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # ── SwiftPM path ────────────────────────────────────────────────────────
+      - name: SPM build
+        if: ${{ inputs.build-tool == 'spm' }}
+        run: swift build
+
+      - name: SPM test
+        if: ${{ inputs.build-tool == 'spm' && inputs.run-tests }}
+        run: swift test
+
+      # ── xcodebuild path ─────────────────────────────────────────────────────
+      - name: Install XcodeGen
+        if: ${{ inputs.build-tool == 'xcodebuild' && inputs.generate-project }}
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        if: ${{ inputs.build-tool == 'xcodebuild' && inputs.generate-project }}
+        run: xcodegen generate
+
+      - name: xcodebuild (unsigned simulator build)
+        if: ${{ inputs.build-tool == 'xcodebuild' }}
+        run: |
+          xcodebuild -scheme "$SCHEME" -configuration "$CONFIGURATION" \
+            -sdk iphonesimulator -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: xcodebuild test
+        if: ${{ inputs.build-tool == 'xcodebuild' && inputs.run-tests }}
+        run: |
+          xcodebuild -scheme "$SCHEME" -configuration "$CONFIGURATION" \
+            -sdk iphonesimulator -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO test
