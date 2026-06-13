@@ -1,0 +1,127 @@
+name: Swift SonarCloud
+
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │ COST NOTE: runs on ubuntu-latest (not macOS). SonarCloud's Swift plugin  │
+# │ analyses source files directly — no compile step needed. Coverage data   │
+# │ is optional: pass coverage-artifact-name to include xccov LCOV output.  │
+# └──────────────────────────────────────────────────────────────────────────┘
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing Swift sources and sonar-project.properties"
+        required: false
+        type: string
+        default: "."
+      coverage-artifact-name:
+        description: "Name of a pre-uploaded LCOV coverage artifact (optional)"
+        required: false
+        type: string
+        default: ""
+      lcov-report-path:
+        description: "Relative path (inside working-directory) to the LCOV report file"
+        required: false
+        type: string
+        default: "coverage.lcov"
+      sonar-project-key:
+        description: "SonarCloud project key (defaults to repository name)"
+        required: false
+        type: string
+        default: ""
+      sonar-organization:
+        description: "SonarCloud organization slug"
+        required: false
+        type: string
+        default: ""
+      run_on_draft:
+        description: "Run even on draft PRs (default: skip on draft to save CI minutes)"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+jobs:
+  sonar:
+    if: ${{ (inputs.run_on_draft || vars.CI_RUN_ON_DRAFT == 'true' || github.event_name != 'pull_request' || github.event.pull_request.draft == false) && vars.SONAR_ENABLED == 'true' }}
+    name: SonarCloud
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage artifact
+        if: inputs.coverage-artifact-name != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: ${{ inputs.working-directory }}
+
+      - name: Build Sonar extra args
+        id: sonar-args
+        env:
+          PROJECT_KEY_INPUT: ${{ inputs.sonar-project-key }}
+          PROJECT_KEY_VAR: ${{ vars.SONAR_PROJECT_KEY }}
+          ORGANIZATION_INPUT: ${{ inputs.sonar-organization }}
+          ORGANIZATION_VAR: ${{ vars.SONAR_ORGANIZATION }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          LCOV_PATH: ${{ inputs.lcov-report-path }}
+          HAS_COVERAGE: ${{ inputs.coverage-artifact-name != '' }}
+        run: |
+          set -euo pipefail
+          PROJECT_KEY="${PROJECT_KEY_INPUT:-}"
+          if [[ -z "$PROJECT_KEY" ]]; then
+            PROJECT_KEY="${PROJECT_KEY_VAR:-}"
+          fi
+          if [[ -z "$PROJECT_KEY" && -f sonar-project.properties ]]; then
+            PROJECT_KEY="$(grep -E '^sonar[.]projectKey=' sonar-project.properties | head -n 1 | cut -d= -f2- || true)"
+          fi
+          if [[ -z "$PROJECT_KEY" ]]; then
+            OWNER_LOWER="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+            PROJECT_KEY="${OWNER_LOWER}_${REPO}"
+          fi
+
+          ORGANIZATION="${ORGANIZATION_INPUT:-}"
+          if [[ -z "$ORGANIZATION" ]]; then
+            ORGANIZATION="${ORGANIZATION_VAR:-}"
+          fi
+          if [[ -z "$ORGANIZATION" && -f sonar-project.properties ]]; then
+            ORGANIZATION="$(grep -E '^sonar[.]organization=' sonar-project.properties | head -n 1 | cut -d= -f2- || true)"
+          fi
+          if [[ -z "$ORGANIZATION" ]]; then
+            ORGANIZATION="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          fi
+
+          EXTRA=""
+          [[ -n "$PROJECT_KEY" ]] && EXTRA="$EXTRA -Dsonar.projectKey=$PROJECT_KEY"
+          [[ -n "$ORGANIZATION" ]] && EXTRA="$EXTRA -Dsonar.organization=$ORGANIZATION"
+          if [[ "$HAS_COVERAGE" == "true" ]]; then
+            EXTRA="$EXTRA -Dsonar.swift.coverage.reportPaths=${LCOV_PATH}"
+          fi
+          echo "args=$EXTRA" >> "$GITHUB_OUTPUT"
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # nosemgrep: generic.secrets.security.detected-sonarqube-docs-api-key.detected-sonarqube-docs-api-key
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          projectBaseDir: ${{ inputs.working-directory }}
+          args: >
+            ${{ steps.sonar-args.outputs.args }}
+            -Dsonar.sources=Sources
+            -Dsonar.tests=Tests
