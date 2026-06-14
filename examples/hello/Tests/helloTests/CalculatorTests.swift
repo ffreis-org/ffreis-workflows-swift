@@ -1,5 +1,5 @@
-import XCTest
 @testable import hello
+import XCTest
 
 final class CalculatorTests: XCTestCase {
     func testAdds() {

@@ -49,7 +49,7 @@ jobs:
           trap 'rm -rf "$tmp"' EXIT
           curl -fsSL "$url" -o "$tmp/swiftformat.zip"
           unzip -q "$tmp/swiftformat.zip" -d "$tmp"
-          sudo install -m 0755 "$tmp/swiftformat" /usr/local/bin/swiftformat
+          sudo install -m 0755 "$tmp/swiftformat_linux" /usr/local/bin/swiftformat
           swiftformat --version
 
       - name: Run SwiftFormat (lint mode)
