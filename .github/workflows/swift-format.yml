@@ -1,0 +1,58 @@
+name: Swift Format
+
+# Runs Nick Lockwood's SwiftFormat on ubuntu (pre-built Linux binaries) — no macOS needed.
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing Swift source to check"
+        required: false
+        type: string
+        default: "."
+      swiftformat-version:
+        description: "SwiftFormat version to download (Renovate-managed)"
+        required: false
+        type: string
+        default: "0.55.6"
+      run_on_draft:
+        description: "Run even on draft PRs (default: skip on draft to save CI minutes)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  format:
+    if: ${{ inputs.run_on_draft || vars.CI_RUN_ON_DRAFT == 'true' || github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    name: SwiftFormat (lint)
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      SWIFTFORMAT_VERSION: ${{ inputs.swiftformat-version }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install SwiftFormat
+        run: |
+          set -euo pipefail
+          url="https://github.com/nicklockwood/SwiftFormat/releases/download/${SWIFTFORMAT_VERSION}/swiftformat_linux.zip"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          curl -fsSL "$url" -o "$tmp/swiftformat.zip"
+          unzip -q "$tmp/swiftformat.zip" -d "$tmp"
+          sudo install -m 0755 "$tmp/swiftformat" /usr/local/bin/swiftformat
+          swiftformat --version
+
+      - name: Run SwiftFormat (lint mode)
+        run: |
+          set -euo pipefail
+          swiftformat --lint .
