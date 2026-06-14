@@ -18,7 +18,7 @@ on:
         description: "SwiftLint container image (Renovate-managed docker tag)"
         required: false
         type: string
-        default: "ghcr.io/realm/swiftlint:0.57.2"
+        default: "ghcr.io/realm/swiftlint:0.63.3"
       run_on_draft:
         description: "Run even on draft PRs (default: skip on draft to save CI minutes)"
         required: false
