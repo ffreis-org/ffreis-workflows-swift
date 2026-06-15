@@ -1,5 +1,9 @@
 # ffreis-workflows-swift
 
+<!-- ffreis-badges:start -->
+[![CI](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-workflows-swift/ci.json)](https://github.com/FelipeFuhr/ffreis-workflows-swift/actions) [![Latest version](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-workflows-swift/version.json)](https://github.com/FelipeFuhr/ffreis-workflows-swift/releases) [![License](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-workflows-swift/license.json)](https://github.com/FelipeFuhr/ffreis-workflows-swift/blob/main/LICENSE)
+<!-- ffreis-badges:end -->
+
 Reusable GitHub Actions workflows for Swift / iOS projects. **Lint runs on ubuntu (cheap); only the
 build/test job runs on macOS — and it is `workflow_dispatch`-gated by cost guard.**
 
